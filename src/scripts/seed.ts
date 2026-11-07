@@ -89,6 +89,8 @@ async function main() {
     scoringTableId: table.id,
     name: `Campeonato de Ciclismo ${year}`,
     modality: "ciclismo",
+    bannerUrl:
+      "https://images.unsplash.com/photo-1517649763962-0c623066027e?auto=format&fit=crop&w=1920&q=80",
     description:
       "Campeonato demo de ciclismo de estrada com categorias por idade (Infantil ao Master).",
     regulation:
@@ -107,6 +109,8 @@ async function main() {
     scoringTableId: table.id,
     name: `Campeonato de Triatlo ${year}`,
     modality: "triathlon",
+    bannerUrl:
+      "https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&fit=crop&w=1920&q=80",
     description:
       "Campeonato demo de triatlo (natação, ciclismo e corrida) com categorias etárias Juvenil a Master.",
     regulation:
@@ -128,6 +132,7 @@ async function seedDemoChampionship(input: {
   scoringTableId: string;
   name: string;
   modality: string;
+  bannerUrl?: string;
   description: string;
   regulation: string;
   stages: { name: string; number: number; monthDay: string }[];
@@ -157,6 +162,7 @@ async function seedDemoChampionship(input: {
         approvalStatus: "approved",
         description: input.description,
         regulation: input.regulation,
+        bannerUrl: input.bannerUrl ?? null,
         location: "Circuito GiroAm — Amazonas",
         routeInfo: "Percurso oficial publicado por etapa.",
         startsAt: `${year}-01-01`,
@@ -173,6 +179,13 @@ async function seedDemoChampionship(input: {
     tournamentId = created.id;
     console.log(`Campeonato demo criado: ${input.name}`);
   } else {
+    if (input.bannerUrl && !existing.bannerUrl) {
+      await input.db
+        .update(tournaments)
+        .set({ bannerUrl: input.bannerUrl, updatedAt: new Date() })
+        .where(eq(tournaments.id, existing.id));
+      console.log(`  → Banner atualizado: ${input.name}`);
+    }
     console.log(`Campeonato demo já existe: ${input.name}`);
   }
 

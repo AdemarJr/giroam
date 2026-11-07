@@ -1,24 +1,64 @@
 import Link from "next/link";
-import { desc } from "drizzle-orm";
-import { GiroAmLogo } from "@/components/brand/Logo";
+import { desc, inArray } from "drizzle-orm";
+import { CommercialFeatures } from "@/components/home/CommercialFeatures";
+import {
+  EventBannerCarousel,
+  type CarouselEvent,
+} from "@/components/home/EventBannerCarousel";
 import { Podium } from "@/components/podium/Podium";
 import { Button, Card } from "@/components/ui/primitives";
 import { db } from "@/lib/db/client";
 import { tournaments } from "@/lib/db/schema";
 import { getIndividualRanking } from "@/lib/scoring/rankings";
 
-
 export default async function HomePage() {
   let ranking: Awaited<ReturnType<typeof getIndividualRanking>> = [];
+  let featured: CarouselEvent[] = [];
   let openTournaments: (typeof tournaments.$inferSelect)[] = [];
 
   try {
     ranking = await getIndividualRanking({});
-    openTournaments = (
-      await db.select().from(tournaments).orderBy(desc(tournaments.createdAt)).limit(12)
-    ).filter((t) =>
+    const rows = await db
+      .select()
+      .from(tournaments)
+      .where(
+        inArray(tournaments.status, [
+          "registration_open",
+          "in_progress",
+          "registration_closed",
+        ]),
+      )
+      .orderBy(desc(tournaments.createdAt))
+      .limit(12);
+
+    openTournaments = rows.filter((t) =>
       ["registration_open", "in_progress"].includes(t.status),
     );
+
+    // Destaque: prioriza quem tem banner; depois campeonatos/corridas abertas
+    featured = [...rows]
+      .sort((a, b) => {
+        const score = (t: (typeof rows)[number]) =>
+          (t.bannerUrl ? 4 : 0) +
+          (t.kind === "championship" || t.kind === "race" ? 2 : 0) +
+          (t.status === "registration_open" ? 1 : 0);
+        return score(b) - score(a);
+      })
+      .slice(0, 8)
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        modality: t.modality,
+        kind: t.kind,
+        status: t.status,
+        bannerUrl: t.bannerUrl,
+        location: t.location,
+        startsAt: t.startsAt,
+        endsAt: t.endsAt,
+        paymentMode: t.paymentMode,
+        priceCents: t.priceCents,
+      }));
   } catch {
     // DB ainda não configurado — UI sobe mesmo assim
   }
@@ -33,28 +73,9 @@ export default async function HomePage() {
 
   return (
     <div>
-      <section className="relative overflow-hidden forest-grid">
-        <div className="hero-sheen pointer-events-none absolute inset-0" />
-        <div className="relative mx-auto flex min-h-[78vh] max-w-7xl flex-col justify-center px-4 py-16">
-          <GiroAmLogo className="mb-8 scale-110 origin-left" />
-          <h1 className="max-w-3xl font-[family-name:var(--font-display)] text-5xl leading-[0.95] tracking-wide text-white md:text-7xl">
-            A floresta acelera.
-            <span className="block text-[var(--giro-green)]">A classificação responde.</span>
-          </h1>
-          <p className="mt-5 max-w-xl text-base text-white/65 md:text-lg">
-            Temporadas, etapas, equipes e homologação de chegada — o campeonato de
-            ciclismo e triathlon da Amazônia em uma plataforma só.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/torneios">
-              <Button>Ver torneios</Button>
-            </Link>
-            <Link href="/rankings">
-              <Button variant="gold">Rankings</Button>
-            </Link>
-          </div>
-        </div>
-      </section>
+      <EventBannerCarousel events={featured} />
+
+      <CommercialFeatures />
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-12 md:grid-cols-2">
         <Card>
@@ -86,9 +107,14 @@ export default async function HomePage() {
             ))}
             {!openTournaments.length && (
               <p className="text-sm text-white/45">
-                Nenhum torneio aberto no momento. Configure o Postgres e rode o seed.
+                Nenhum torneio aberto no momento.
               </p>
             )}
+          </div>
+          <div className="mt-4">
+            <Link href="/torneios">
+              <Button variant="ghost">Ver todos</Button>
+            </Link>
           </div>
         </Card>
       </section>
