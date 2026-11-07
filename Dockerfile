@@ -27,7 +27,9 @@ COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
+RUN chmod +x /app/scripts/docker-entrypoint.sh
 
 USER nextjs
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["/app/scripts/docker-entrypoint.sh"]
