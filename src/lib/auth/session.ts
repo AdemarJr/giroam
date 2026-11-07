@@ -13,7 +13,7 @@ export type SessionUser = {
   name: string;
   email: string;
   cpf: string;
-  role: "super_admin" | "admin" | "captain" | "participant";
+  role: "super_admin" | "admin" | "organizer" | "captain" | "participant";
   photoUrl: string | null;
 };
 
@@ -107,6 +107,14 @@ export async function requireSuperAdmin() {
 
 export async function requireCaptain() {
   return requireUser(["captain", "super_admin"]);
+}
+
+export async function requireOrganizer() {
+  const user = await requireUser(["organizer", "super_admin"]);
+  if (user.role !== "organizer" && user.role !== "super_admin") {
+    throw new Error("Somente Organizador");
+  }
+  return user;
 }
 
 export async function setSessionCookie(token: string) {

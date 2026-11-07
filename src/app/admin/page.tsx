@@ -65,6 +65,7 @@ export default async function AdminDashboardPage() {
           ...(isSuperAdmin(user.role)
             ? [["/admin/capitaes", "Capitães (lista)"] as const]
             : []),
+          ["/admin/organizadores", "Organizadores / financeiro"],
           ["/admin/chegada", "Registrar chegada"],
           ["/admin/homologacao", "Homologar resultados"],
           ["/admin/relatorios", "Relatórios"],

@@ -20,7 +20,7 @@ export default async function MePage({ searchParams }: Props) {
   if (!session) redirect("/login");
   const user = (await loadUserById(session.id)) ?? session;
   const [profile] = await db
-    .select({ phone: users.phone })
+    .select({ phone: users.phone, birthDate: users.birthDate })
     .from(users)
     .where(eq(users.id, user.id))
     .limit(1);
@@ -66,6 +66,11 @@ export default async function MePage({ searchParams }: Props) {
       <PageHeader
         title={`Olá, ${user.name.split(" ")[0]}`}
         subtitle="Seu desempenho, perfil, equipe, inscrições e conquistas."
+        actions={
+          <Link href="/organizador">
+            <Button variant="ghost">Painel Organizador</Button>
+          </Link>
+        }
       />
 
       {(error || ok) && (
@@ -135,6 +140,18 @@ export default async function MePage({ searchParams }: Props) {
                 defaultValue={profile?.phone ?? ""}
                 placeholder="(92) 90000-0000"
               />
+            </div>
+            <div>
+              <Label>Data de nascimento</Label>
+              <Input
+                name="birthDate"
+                type="date"
+                required
+                defaultValue={profile?.birthDate ?? ""}
+              />
+              <p className="mt-1 text-xs text-white/40">
+                Usada para validar a categoria etária nos campeonatos.
+              </p>
             </div>
             <div>
               <Label>URL da foto</Label>

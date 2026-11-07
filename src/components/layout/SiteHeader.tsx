@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { GiroAmLogo } from "@/components/brand/Logo";
 import { logoutAction } from "@/lib/actions/auth";
-import { isAdminRole, isCaptain } from "@/lib/auth/roles";
+import { isAdminRole, isCaptain, isOrganizer } from "@/lib/auth/roles";
 import { readSession } from "@/lib/auth/session";
 import { isInviteOnlyRegistration } from "@/lib/config";
 import { Button } from "@/components/ui/primitives";
@@ -35,6 +35,11 @@ export async function SiteHeader() {
           {user && isCaptain(user.role) && (
             <Link href="/capitao" className="hover:text-white">
               Capitão
+            </Link>
+          )}
+          {user && isOrganizer(user.role) && (
+            <Link href="/organizador" className="hover:text-white">
+              Organizador
             </Link>
           )}
           {user && isAdminRole(user.role) && (

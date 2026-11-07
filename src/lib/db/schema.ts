@@ -17,6 +17,7 @@ import { relations } from "drizzle-orm";
 export const userRoleEnum = pgEnum("user_role", [
   "super_admin",
   "admin",
+  "organizer",
   "captain",
   "participant",
 ]);
@@ -26,6 +27,52 @@ export const inviteStatusEnum = pgEnum("invite_status", [
   "accepted",
   "revoked",
   "expired",
+]);
+
+export const organizerStatusEnum = pgEnum("organizer_status", [
+  "pending",
+  "approved",
+  "blocked",
+]);
+
+export const eventKindEnum = pgEnum("event_kind", [
+  "championship",
+  "tournament",
+  "race",
+  "ride",
+  "event",
+]);
+
+export const eventApprovalStatusEnum = pgEnum("event_approval_status", [
+  "draft",
+  "pending_review",
+  "approved",
+  "rejected",
+  "suspended",
+]);
+
+export const paymentModeEnum = pgEnum("payment_mode", [
+  "free",
+  "pix",
+  "checkout",
+]);
+
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "pending",
+  "awaiting",
+  "confirmed",
+  "received",
+  "overdue",
+  "refunded",
+  "cancelled",
+  "failed",
+]);
+
+export const paymentBillingTypeEnum = pgEnum("payment_billing_type", [
+  "UNDEFINED",
+  "PIX",
+  "CREDIT_CARD",
+  "BOLETO",
 ]);
 
 export const seasonStatusEnum = pgEnum("season_status", [
@@ -45,6 +92,7 @@ export const tournamentStatusEnum = pgEnum("tournament_status", [
 
 export const registrationStatusEnum = pgEnum("registration_status", [
   "pending",
+  "awaiting_payment",
   "approved",
   "rejected",
   "cancelled",
@@ -84,6 +132,7 @@ export const users = pgTable(
     role: userRoleEnum("role").notNull().default("participant"),
     photoUrl: text("photo_url"),
     phone: varchar("phone", { length: 30 }),
+    birthDate: date("birth_date"),
     bibNumber: varchar("bib_number", { length: 20 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -100,6 +149,9 @@ export const users = pgTable(
 
 export const seasons = pgTable("seasons", {
   id: uuid("id").defaultRandom().primaryKey(),
+  organizerId: uuid("organizer_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   name: varchar("name", { length: 160 }).notNull(),
   year: integer("year").notNull(),
   startsAt: date("starts_at").notNull(),
@@ -134,14 +186,23 @@ export const tournaments = pgTable("tournaments", {
   seasonId: uuid("season_id")
     .notNull()
     .references(() => seasons.id, { onDelete: "restrict" }),
+  organizerId: uuid("organizer_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   scoringTableId: uuid("scoring_table_id")
     .notNull()
     .references(() => scoringTables.id, { onDelete: "restrict" }),
   name: varchar("name", { length: 200 }).notNull(),
+  kind: eventKindEnum("kind").notNull().default("tournament"),
+  approvalStatus: eventApprovalStatusEnum("approval_status")
+    .notNull()
+    .default("approved"),
   bannerUrl: text("banner_url"),
   description: text("description"),
   regulation: text("regulation"),
   modality: varchar("modality", { length: 80 }).notNull().default("ciclismo"),
+  location: varchar("location", { length: 240 }),
+  routeInfo: text("route_info"),
   startsAt: date("starts_at").notNull(),
   endsAt: date("ends_at").notNull(),
   registrationStartsAt: timestamp("registration_starts_at", {
@@ -156,6 +217,10 @@ export const tournaments = pgTable("tournaments", {
     .default(true),
   allowTeams: boolean("allow_teams").notNull().default(true),
   maxScoringMembersPerStage: integer("max_scoring_members_per_stage"),
+  paymentMode: paymentModeEnum("payment_mode").notNull().default("free"),
+  priceCents: integer("price_cents").notNull().default(0),
+  currency: varchar("currency", { length: 3 }).notNull().default("BRL"),
+  paymentDueDays: integer("payment_due_days").notNull().default(2),
   tieBreakers: jsonb("tie_breakers")
     .$type<string[]>()
     .notNull()
@@ -259,6 +324,86 @@ export const userInvites = pgTable(
   (t) => [uniqueIndex("user_invites_token_uq").on(t.token)],
 );
 
+export const organizerProfiles = pgTable("organizer_profiles", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  status: organizerStatusEnum("status").notNull().default("pending"),
+  displayName: varchar("display_name", { length: 160 }).notNull(),
+  document: varchar("document", { length: 18 }),
+  phone: varchar("phone", { length: 30 }),
+  bio: text("bio"),
+  asaasCustomerId: varchar("asaas_customer_id", { length: 80 }),
+  asaasWalletId: varchar("asaas_wallet_id", { length: 80 }),
+  platformFeePercent: numeric("platform_fee_percent", {
+    precision: 5,
+    scale: 2,
+  })
+    .notNull()
+    .default("0"),
+  notes: text("notes"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvedBy: uuid("approved_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const platformSettings = pgTable(
+  "platform_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    key: varchar("key", { length: 80 }).notNull(),
+    value: jsonb("value").$type<Record<string, unknown>>().notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [uniqueIndex("platform_settings_key_uq").on(t.key)],
+);
+
+export const eventCategories = pgTable("event_categories", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tournamentId: uuid("tournament_id")
+    .notNull()
+    .references(() => tournaments.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 120 }).notNull(),
+  description: text("description"),
+  minAge: integer("min_age"),
+  maxAge: integer("max_age"),
+  gender: varchar("gender", { length: 20 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const registrationLots = pgTable("registration_lots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tournamentId: uuid("tournament_id")
+    .notNull()
+    .references(() => tournaments.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 120 }).notNull(),
+  priceCents: integer("price_cents").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  maxQuantity: integer("max_quantity"),
+  soldCount: integer("sold_count").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const registrations = pgTable(
   "registrations",
   {
@@ -272,6 +417,13 @@ export const registrations = pgTable(
     teamId: uuid("team_id").references(() => teams.id, {
       onDelete: "set null",
     }),
+    categoryId: uuid("category_id").references(() => eventCategories.id, {
+      onDelete: "set null",
+    }),
+    lotId: uuid("lot_id").references(() => registrationLots.id, {
+      onDelete: "set null",
+    }),
+    amountCents: integer("amount_cents").notNull().default(0),
     status: registrationStatusEnum("status").notNull().default("pending"),
     bibNumber: varchar("bib_number", { length: 20 }),
     notes: text("notes"),
@@ -286,6 +438,74 @@ export const registrations = pgTable(
   (t) => [
     uniqueIndex("registrations_tournament_user_uq").on(t.tournamentId, t.userId),
   ],
+);
+
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizerId: uuid("organizer_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    tournamentId: uuid("tournament_id")
+      .notNull()
+      .references(() => tournaments.id, { onDelete: "restrict" }),
+    registrationId: uuid("registration_id")
+      .notNull()
+      .references(() => registrations.id, { onDelete: "restrict" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    gateway: varchar("gateway", { length: 40 }).notNull().default("asaas"),
+    gatewayPaymentId: varchar("gateway_payment_id", { length: 80 }),
+    gatewayCustomerId: varchar("gateway_customer_id", { length: 80 }),
+    billingType: paymentBillingTypeEnum("billing_type")
+      .notNull()
+      .default("PIX"),
+    status: paymentStatusEnum("status").notNull().default("pending"),
+    amountCents: integer("amount_cents").notNull(),
+    netAmountCents: integer("net_amount_cents"),
+    feeCents: integer("fee_cents"),
+    currency: varchar("currency", { length: 3 }).notNull().default("BRL"),
+    pixQrCode: text("pix_qr_code"),
+    pixCopyPaste: text("pix_copy_paste"),
+    pixEncodedImage: text("pix_encoded_image"),
+    invoiceUrl: text("invoice_url"),
+    dueDate: date("due_date"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    idempotencyKey: varchar("idempotency_key", { length: 80 }).notNull(),
+    externalReference: varchar("external_reference", { length: 120 }).notNull(),
+    rawPayload: jsonb("raw_payload").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("payments_idempotency_uq").on(t.idempotencyKey),
+    uniqueIndex("payments_gateway_payment_uq").on(t.gatewayPaymentId),
+  ],
+);
+
+export const paymentEvents = pgTable(
+  "payment_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    paymentId: uuid("payment_id").references(() => payments.id, {
+      onDelete: "cascade",
+    }),
+    gatewayEventId: varchar("gateway_event_id", { length: 120 }),
+    eventType: varchar("event_type", { length: 80 }).notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    processed: boolean("processed").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [uniqueIndex("payment_events_gateway_event_uq").on(t.gatewayEventId)],
 );
 
 export const stages = pgTable(

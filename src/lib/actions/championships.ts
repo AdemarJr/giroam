@@ -149,21 +149,31 @@ export async function createTournamentAction(formData: FormData) {
 
   const scoringTableId = await ensureDefaultScoringTable();
 
-  await db.insert(tournaments).values({
-    name: parsed.data.name,
-    seasonId: parsed.data.seasonId,
-    scoringTableId,
-    description: parsed.data.description,
-    regulation: parsed.data.regulation,
-    modality: parsed.data.modality,
-    startsAt: parsed.data.startsAt,
-    endsAt: parsed.data.endsAt,
-    maxParticipants: parsed.data.maxParticipants,
-    autoApproveRegistrations: parsed.data.autoApprove !== "false",
-    allowTeams: parsed.data.allowTeams !== "false",
-    status: "registration_open",
-    registrationStartsAt: new Date(),
-  });
+  const [created] = await db
+    .insert(tournaments)
+    .values({
+      name: parsed.data.name,
+      seasonId: parsed.data.seasonId,
+      scoringTableId,
+      description: parsed.data.description,
+      regulation: parsed.data.regulation,
+      modality: parsed.data.modality,
+      kind: "championship",
+      approvalStatus: "approved",
+      startsAt: parsed.data.startsAt,
+      endsAt: parsed.data.endsAt,
+      maxParticipants: parsed.data.maxParticipants,
+      autoApproveRegistrations: parsed.data.autoApprove !== "false",
+      allowTeams: parsed.data.allowTeams !== "false",
+      status: "registration_open",
+      registrationStartsAt: new Date(),
+    })
+    .returning();
+
+  const { ensureAgeCategoriesForTournament } = await import(
+    "@/lib/categories/seed-categories"
+  );
+  await ensureAgeCategoriesForTournament(created.id, parsed.data.modality);
 
   revalidatePath("/admin/torneios");
   revalidatePath("/torneios");

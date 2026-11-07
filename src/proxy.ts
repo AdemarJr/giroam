@@ -26,6 +26,7 @@ export async function proxy(request: NextRequest) {
 
   const needsAuth =
     pathname.startsWith("/admin") ||
+    pathname.startsWith("/organizador") ||
     pathname.startsWith("/capitao") ||
     pathname.startsWith("/me") ||
     pathname.startsWith("/api/reports");
@@ -40,6 +41,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/me", request.url));
   }
 
+  // /organizador: qualquer autenticado pode solicitar o perfil;
+  // páginas internas checam isOrganizer + aprovação.
+
   if (
     pathname.startsWith("/capitao") &&
     role !== "captain" &&
@@ -53,5 +57,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/capitao/:path*", "/me", "/api/reports/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/organizador/:path*",
+    "/capitao/:path*",
+    "/me",
+    "/api/reports/:path*",
+  ],
 };

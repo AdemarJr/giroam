@@ -17,6 +17,11 @@ const profileSchema = z.object({
   name: z.string().min(3).max(160),
   phone: z.string().max(30).optional(),
   photoUrl: z.string().url().optional().or(z.literal("")),
+  birthDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
+    .optional()
+    .or(z.literal("")),
 });
 
 export async function updateProfileAction(formData: FormData) {
@@ -25,6 +30,7 @@ export async function updateProfileAction(formData: FormData) {
     name: formData.get("name"),
     phone: formData.get("phone") || undefined,
     photoUrl: formData.get("photoUrl") || "",
+    birthDate: formData.get("birthDate") || "",
   });
   if (!parsed.success) return { error: "Dados inválidos" };
 
@@ -34,6 +40,7 @@ export async function updateProfileAction(formData: FormData) {
       name: parsed.data.name,
       phone: parsed.data.phone || null,
       photoUrl: parsed.data.photoUrl || null,
+      birthDate: parsed.data.birthDate || null,
       updatedAt: new Date(),
     })
     .where(eq(users.id, user.id))

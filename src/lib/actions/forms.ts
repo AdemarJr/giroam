@@ -123,3 +123,28 @@ export async function resolveJoinRequestFormAction(formData: FormData): Promise<
 export async function removeTeamMemberFormAction(formData: FormData): Promise<void> {
   await ignoreResult(await removeTeamMemberAction(formData));
 }
+
+export async function enrollEventFormAction(formData: FormData): Promise<void> {
+  const tournamentId = String(formData.get("tournamentId") ?? "");
+  try {
+    const { enrollInEventAction } = await import("./organizer");
+    const result = await enrollInEventAction(formData);
+    if (result.needsPayment) {
+      redirect(`/torneios/${tournamentId}/pagamento?reg=${result.registrationId}`);
+    }
+    redirect(`/torneios/${tournamentId}?ok=inscrito`);
+  } catch (err) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "digest" in err &&
+      String((err as { digest?: string }).digest ?? "").startsWith("NEXT_REDIRECT")
+    ) {
+      throw err;
+    }
+    redirectWithError(
+      `/torneios/${tournamentId}`,
+      err instanceof Error ? err.message : "Falha na inscrição",
+    );
+  }
+}
